@@ -19,7 +19,7 @@ MODULE_VERSION("0.1");
 /* MAX_LENGTH is set to 92 because
  * ssize_t can't fit the number > 92
  */
-#define MAX_LENGTH 92
+#define MAX_LENGTH 100
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
@@ -118,26 +118,25 @@ static void string_number_add(xs *a, xs *b, xs *out)
 }
 
 
-static __int128 fib_sequence(long long k, char __user *buf)
+static size_t fib_sequence(long long k, char __user *buf)
 {
     xs *f = kmalloc(sizeof(xs) * (k + 2), GFP_KERNEL);
-    int i, n;
-    __int128 result;
+    int i;
+    size_t size;
 
     f[0] = *xs_tmp("0");
     f[1] = *xs_tmp("1");
 
     for (i = 2; i <= k; i++)
         string_number_add(&f[i - 1], &f[i - 2], &f[i]);
-    n = xs_size(&f[k]);
-    if (copy_to_user(buf, xs_data(&f[k]), n))
+    size = xs_size(&f[k]);
+    if (copy_to_user(buf, xs_data(&f[k]), size))
         return -EFAULT;
 
-    result = xs_data_numeric(&f[k]);
     for (i = 0; i <= k; i++)
         xs_free(&f[i]);
     xs_free(f);
-    return result;
+    return size;
 }
 
 static int fib_open(struct inode *inode, struct file *file)
