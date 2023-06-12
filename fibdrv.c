@@ -4,6 +4,7 @@
 #include <linux/init.h>
 #include <linux/kdev_t.h>
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 
@@ -26,6 +27,7 @@ static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 
+static ktime_t kt;
 #define XOR_SWAP(a, b, type) \
     do {                     \
         type *__c = (a);     \
@@ -154,13 +156,23 @@ static int fib_release(struct inode *inode, struct file *file)
     return 0;
 }
 
+static ssize_t fib_time_proxy(loff_t *offset, char __user *buf)
+{
+    kt = ktime_get();
+    ssize_t result = (ssize_t) fib_sequence(*offset, buf);
+    kt = ktime_sub(ktime_get(), kt);
+
+    return result;
+}
+
+
 /* calculate the fibonacci number at given offset */
 static ssize_t fib_read(struct file *file,
                         char __user *buf,
                         size_t size,
                         loff_t *offset)
 {
-    return (ssize_t) fib_sequence(*offset, buf);
+    return fib_time_proxy(offset, buf);
 }
 
 /* write operation is skipped */
@@ -169,7 +181,7 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    return 1;
+    return ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)

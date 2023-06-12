@@ -21,6 +21,7 @@ $(GIT_HOOKS):
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
 	$(RM) client out
+	rm -f data.csv data.png
 load:
 	sudo insmod $(TARGET_MODULE).ko
 unload:
@@ -37,7 +38,11 @@ pass = $(PRINTF) "$(PASS_COLOR)$1 Passed [-]$(NO_COLOR)\n"
 check: all
 	$(MAKE) unload
 	$(MAKE) load
+	sudo taskset -c 7 ./client
 	sudo ./client > out
 	$(MAKE) unload
 	@diff -u out scripts/expected.txt && $(call pass)
 	@scripts/verify.py
+
+plot:
+	python3 draw_data.py
