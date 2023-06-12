@@ -7,8 +7,9 @@
 #include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 
-#include "xs.h"
+// #include "xs.h"
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
@@ -37,107 +38,134 @@ static ktime_t kt;
         *__c ^= *__d;        \
     } while (0)
 
-static void __swap(void *a, void *b, size_t size)
+// static void __swap(void *a, void *b, size_t size)
+// {
+//     if (a == b)
+//         return;
+
+//     switch (size) {
+//     case 1:
+//         XOR_SWAP(a, b, char);
+//         break;
+//     case 2:
+//         XOR_SWAP(a, b, short);
+//         break;
+//     case 4:
+//         XOR_SWAP(a, b, unsigned int);
+//         break;
+//     case 8:
+//         XOR_SWAP(a, b, unsigned long);
+//         break;
+//     default:
+//         /* Do nothing */
+//         break;
+//     }
+// }
+
+// static void reverse_str(char *str, size_t n)
+// {
+//     for (int i = 0; i < (n >> 1); i++)
+//         __swap(&str[i], &str[n - i - 1], sizeof(char));
+// }
+
+// static void string_number_add(xs *a, xs *b, xs *out)
+// {
+//     char *data_a, *data_b;
+//     size_t size_a, size_b;
+//     int i, carry = 0;
+//     int sum;
+
+//     /*
+//      * Make sure the string length of 'a' is always greater than
+//      * the one of 'b'.
+//      */
+//     if (xs_size(a) < xs_size(b))
+//         __swap((void *) &a, (void *) &b, sizeof(void *));
+
+//     data_a = xs_data(a);
+//     data_b = xs_data(b);
+
+//     size_a = xs_size(a);
+//     size_b = xs_size(b);
+
+//     reverse_str(data_a, size_a);
+//     reverse_str(data_b, size_b);
+
+//     char *buf = kmalloc(sizeof(char) * (size_a + 2), GFP_KERNEL);
+
+//     for (i = 0; i < size_b; i++) {
+//         sum = (data_a[i] - '0') + (data_b[i] - '0') + carry;
+//         buf[i] = '0' + sum % 10;
+//         carry = sum / 10;
+//     }
+
+//     for (i = size_b; i < size_a; i++) {
+//         sum = (data_a[i] - '0') + carry;
+//         buf[i] = '0' + sum % 10;
+//         carry = sum / 10;
+//     }
+
+//     if (carry)
+//         buf[i++] = '0' + carry;
+
+//     buf[i] = 0;
+
+//     reverse_str(buf, i);
+
+//     /* Restore the original string */
+//     reverse_str(data_a, size_a);
+//     reverse_str(data_b, size_b);
+
+//     if (out)
+//         *out = *xs_tmp(buf);
+// }
+
+static inline uint64_t fast_doubling(long long target)
 {
-    if (a == b)
-        return;
+    if (target <= 2)
+        return !!target;
 
-    switch (size) {
-    case 1:
-        XOR_SWAP(a, b, char);
-        break;
-    case 2:
-        XOR_SWAP(a, b, short);
-        break;
-    case 4:
-        XOR_SWAP(a, b, unsigned int);
-        break;
-    case 8:
-        XOR_SWAP(a, b, unsigned long);
-        break;
-    default:
-        /* Do nothing */
-        break;
-    }
-}
+    // fib(2n) = fib(n) * (2 * fib(n+1) − fib(n))
+    // fib(2n+1) = fib(n) * fib(n) + fib(n+1) * fib(n+1)
+    uint64_t n = fast_doubling(target >> 1);
+    uint64_t n1 = fast_doubling((target >> 1) + 1);
 
-static void reverse_str(char *str, size_t n)
-{
-    for (int i = 0; i < (n >> 1); i++)
-        __swap(&str[i], &str[n - i - 1], sizeof(char));
-}
-
-static void string_number_add(xs *a, xs *b, xs *out)
-{
-    char *data_a, *data_b;
-    size_t size_a, size_b;
-    int i, carry = 0;
-    int sum;
-
-    /*
-     * Make sure the string length of 'a' is always greater than
-     * the one of 'b'.
-     */
-    if (xs_size(a) < xs_size(b))
-        __swap((void *) &a, (void *) &b, sizeof(void *));
-
-    data_a = xs_data(a);
-    data_b = xs_data(b);
-
-    size_a = xs_size(a);
-    size_b = xs_size(b);
-
-    reverse_str(data_a, size_a);
-    reverse_str(data_b, size_b);
-
-    char *buf = kmalloc(sizeof(char) * (size_a + 2), GFP_KERNEL);
-
-    for (i = 0; i < size_b; i++) {
-        sum = (data_a[i] - '0') + (data_b[i] - '0') + carry;
-        buf[i] = '0' + sum % 10;
-        carry = sum / 10;
-    }
-
-    for (i = size_b; i < size_a; i++) {
-        sum = (data_a[i] - '0') + carry;
-        buf[i] = '0' + sum % 10;
-        carry = sum / 10;
-    }
-
-    if (carry)
-        buf[i++] = '0' + carry;
-
-    buf[i] = 0;
-
-    reverse_str(buf, i);
-
-    /* Restore the original string */
-    reverse_str(data_a, size_a);
-    reverse_str(data_b, size_b);
-
-    if (out)
-        *out = *xs_tmp(buf);
+    // check 2n or 2n+1
+    if (target & 1)
+        return n * n + n1 * n1;
+    return n * ((n1 << 1) - n);
 }
 
 
 static size_t fib_sequence(long long k, char __user *buf)
 {
-    xs *f = kmalloc(sizeof(xs) * (k + 2), GFP_KERNEL);
-    int i;
+    int i, len = 0;
     size_t size;
+    uint64_t fib_k = fast_doubling(k), tmp;
+    tmp = fib_k;
 
-    f[0] = *xs_tmp("0");
-    f[1] = *xs_tmp("1");
+    if (tmp == 0)
+        len = 1;
+    while (tmp > 0) {
+        tmp /= 10;
+        len++;
+    }
+    char *str_k = kmalloc(sizeof(char) * (len + 1), GFP_KERNEL);
+    size = sizeof(char) * (len + 1);
+    str_k[len] = '\0';
+    tmp = fib_k;
+    for (i = len - 1; i >= 0; i--) {
+        str_k[i] = (fib_k % 10 + '0');
+        fib_k /= 10;
+    }
+    // uint64_t a = 12200160415121876738;
+    // uint64_t b = 7540113804746346429;
+    // uint64_t c = 19740274219868223167;
+    printk(KERN_INFO "%lld, %llu, %s\n", k, tmp, str_k);
 
-    for (i = 2; i <= k; i++)
-        string_number_add(&f[i - 1], &f[i - 2], &f[i]);
-    size = xs_size(&f[k]);
-    if (copy_to_user(buf, xs_data(&f[k]), size))
+    if (copy_to_user(buf, str_k, size))
         return -EFAULT;
-
-    for (i = 0; i <= k; i++)
-        xs_free(&f[i]);
-    xs_free(f);
+    kfree(str_k);
     return size;
 }
 
@@ -181,7 +209,8 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    return ktime_to_ns(kt);
+    return 1;
+    // return ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)
