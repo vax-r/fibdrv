@@ -21,7 +21,7 @@ MODULE_VERSION("0.1");
 /* MAX_LENGTH is set to 92 because
  * ssize_t can't fit the number > 92
  */
-#define MAX_LENGTH 100
+#define MAX_LENGTH 92
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
@@ -120,15 +120,35 @@ static ktime_t kt;
 //         *out = *xs_tmp(buf);
 // }
 
-static inline uint64_t fast_doubling(long long target)
+static inline uint64_t fast_doubling_iter(long long target)
+{
+    if (target <= 2)
+        return !!target;
+
+    // find first 1
+    uint8_t count = 63 - __builtin_clzll(target);
+    uint64_t fib_n0 = 1, fib_n1 = 1;
+
+    for (uint64_t i = count, fib_2n0, fib_2n1, mask; i-- > 0;) {
+        fib_2n0 = fib_n0 * ((fib_n1 << 1) - fib_n0);
+        fib_2n1 = fib_n0 * fib_n0 + fib_n1 * fib_n1;
+
+        mask = -!!(target & (1UL << i));
+        fib_n0 = (fib_2n0 & ~mask) + (fib_2n1 & mask);
+        fib_n1 = (fib_2n0 & mask) + fib_2n1;
+    }
+    return fib_n0;
+}
+
+static inline uint64_t fast_doubling_recur(long long target)
 {
     if (target <= 2)
         return !!target;
 
     // fib(2n) = fib(n) * (2 * fib(n+1) − fib(n))
     // fib(2n+1) = fib(n) * fib(n) + fib(n+1) * fib(n+1)
-    uint64_t n = fast_doubling(target >> 1);
-    uint64_t n1 = fast_doubling((target >> 1) + 1);
+    uint64_t n = fast_doubling_recur(target >> 1);
+    uint64_t n1 = fast_doubling_recur((target >> 1) + 1);
 
     // check 2n or 2n+1
     if (target & 1)
@@ -141,7 +161,8 @@ static size_t fib_sequence(long long k, char __user *buf)
 {
     int i, len = 0;
     size_t size;
-    uint64_t fib_k = fast_doubling(k), tmp;
+    uint64_t fib_k = fast_doubling_iter(k),
+             tmp;  // adjust between iteration version and recursive version
     tmp = fib_k;
 
     if (tmp == 0)
@@ -153,15 +174,12 @@ static size_t fib_sequence(long long k, char __user *buf)
     char *str_k = kmalloc(sizeof(char) * (len + 1), GFP_KERNEL);
     size = sizeof(char) * (len + 1);
     str_k[len] = '\0';
-    tmp = fib_k;
+    // tmp = fib_k;
     for (i = len - 1; i >= 0; i--) {
         str_k[i] = (fib_k % 10 + '0');
         fib_k /= 10;
     }
-    // uint64_t a = 12200160415121876738;
-    // uint64_t b = 7540113804746346429;
-    // uint64_t c = 19740274219868223167;
-    printk(KERN_INFO "%lld, %llu, %s\n", k, tmp, str_k);
+    // printk(KERN_INFO "%lld, %llu, %s\n", k, tmp, str_k);
 
     if (copy_to_user(buf, str_k, size))
         return -EFAULT;
@@ -209,8 +227,8 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    return 1;
-    // return ktime_to_ns(kt);
+    // return 1;
+    return ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)

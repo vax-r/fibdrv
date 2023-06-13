@@ -40,7 +40,7 @@ check: all
 	$(MAKE) load
 	sudo ./client > out
 	$(MAKE) unload
-	@diff -u out scripts/expected.txt && $(call pass)
+	@diff -u out scripts/expected_test.txt && $(call pass)
 	@scripts/verify.py
 
 plot:

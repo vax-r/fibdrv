@@ -21,7 +21,7 @@ int main()
 
     char read_buf[] = "";
     char write_buf[] = "testing writing";
-    int offset = 100; /* TODO: try test something bigger than the limit */
+    int offset = 92; /* TODO: try test something bigger than the limit */
 
     int fd = open(FIB_DEV, O_RDWR);
     if (fd < 0) {
@@ -30,25 +30,27 @@ int main()
     }
     // FILE *data = fopen("data.csv", "w");
 
-    for (int i = 0; i <= offset; i++) {
-        sz = write(fd, write_buf, strlen(write_buf));
-        printf("Writing to " FIB_DEV ", returned the sequence %lld\n", sz);
-    }
+    // for (int i = 0; i <= offset; i++) {
+    //     sz = write(fd, write_buf, strlen(write_buf));
+    //     printf("Writing to " FIB_DEV ", returned the sequence %lld\n", sz);
+    // }
     // fprintf(data, "ktime,utime,systemcalltime\n");
+    FILE *data = fopen("data_iter.csv", "w");
+    fprintf(data, "ktime_iter\n");
+
     for (int i = 0; i <= offset; i++) {
         lseek(fd, i, SEEK_SET);
         // long long start_time = get_nanotime();
         sz = read(fd, read_buf, 1);
         read_buf[sz] = '\0';
         // long long utime = get_nanotime() - start_time;
-        // ssize_t ktime = write(fd, write_buf, strlen(write_buf));
-        // fprintf(data, "%ld,%lld,%lld\n", ktime, utime, utime - ktime);
+        ssize_t ktime = write(fd, write_buf, strlen(write_buf));
+        fprintf(data, "%ld\n", ktime);
         printf("Reading from " FIB_DEV
                " at offset %d, returned the sequence "
                "%s.\n",
                i, read_buf);
-        // printf("Writing to " FIB_DEV ", returned the sequence %ld.\n",
-        // ktime);
+        printf("Writing to " FIB_DEV ", returned the sequence %ld.\n", ktime);
     }
 
     for (int i = offset; i >= 0; i--) {
@@ -64,7 +66,7 @@ int main()
         // ktime);
     }
 
-    // fclose(data);
+    fclose(data);
     close(fd);
     return 0;
 }
