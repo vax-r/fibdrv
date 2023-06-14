@@ -29,6 +29,7 @@ dkms.conf
 # test-oriented
 client
 out
+*.out
 
 # ouput data files and image file
 *.csv
