@@ -9,7 +9,7 @@ PWD := $(shell pwd)
 
 GIT_HOOKS := .git/hooks/applied
 
-$(TARGET_MODULE)-objs := fibdrv.o
+$(TARGET_MODULE)-objs := fibdrv.o bn.o
 
 all: $(GIT_HOOKS) client
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
@@ -40,7 +40,7 @@ check: all
 	$(MAKE) load
 	sudo ./client > out
 	$(MAKE) unload
-	@diff -u out scripts/expected_test.txt && $(call pass)
+	@diff -u out scripts/expected.txt && $(call pass)
 	@scripts/verify.py
 
 plot:

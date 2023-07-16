@@ -10,6 +10,7 @@
 #include <linux/slab.h>
 
 // #include "xs.h"
+#include "bn.h"
 
 MODULE_LICENSE("Dual MIT/GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
@@ -21,14 +22,14 @@ MODULE_VERSION("0.1");
 /* MAX_LENGTH is set to 92 because
  * ssize_t can't fit the number > 92
  */
-#define MAX_LENGTH 92
+#define MAX_LENGTH 100
 
 static dev_t fib_dev = 0;
 static struct cdev *fib_cdev;
 static struct class *fib_class;
 static DEFINE_MUTEX(fib_mutex);
 
-static ktime_t kt;
+// static ktime_t kt;
 #define XOR_SWAP(a, b, type) \
     do {                     \
         type *__c = (a);     \
@@ -156,30 +157,36 @@ static inline uint64_t fast_doubling_recur(long long target)
     return n * ((n1 << 1) - n);
 }
 
+static inline char *big_num_fib(long long k)
+{
+    if (k == 0)
+        return "0";
+    bn *a = bn_init(1);
+    bn *b = bn_init(1);
+    bn *c = bn_init(1);
+    a->number[0] = 0;
+    b->number[0] = 1;
+
+    int i;
+    char *tmp;
+    for (i = 2; i <= k; i++) {
+        bn_add(a, b, c);
+        bn_free(a);
+        a = b;
+        b = c;
+        c = bn_init(1);
+    }
+    tmp = bn_to_string(b);
+    bn_free(a);
+    bn_free(b);
+    bn_free(c);
+    return tmp;
+}
 
 static size_t fib_sequence(long long k, char __user *buf)
 {
-    int i, len = 0;
-    size_t size;
-    uint64_t fib_k = fast_doubling_iter(k),
-             tmp;  // adjust between iteration version and recursive version
-    tmp = fib_k;
-
-    if (tmp == 0)
-        len = 1;
-    while (tmp > 0) {
-        tmp /= 10;
-        len++;
-    }
-    char *str_k = kmalloc(sizeof(char) * (len + 1), GFP_KERNEL);
-    size = sizeof(char) * (len + 1);
-    str_k[len] = '\0';
-    // tmp = fib_k;
-    for (i = len - 1; i >= 0; i--) {
-        str_k[i] = (fib_k % 10 + '0');
-        fib_k /= 10;
-    }
-    // printk(KERN_INFO "%lld, %llu, %s\n", k, tmp, str_k);
+    char *str_k = big_num_fib(k);
+    size_t size = sizeof(char) * strlen(str_k);
 
     if (copy_to_user(buf, str_k, size))
         return -EFAULT;
@@ -204,9 +211,9 @@ static int fib_release(struct inode *inode, struct file *file)
 
 static ssize_t fib_time_proxy(loff_t *offset, char __user *buf)
 {
-    kt = ktime_get();
+    // kt = ktime_get();
     ssize_t result = (ssize_t) fib_sequence(*offset, buf);
-    kt = ktime_sub(ktime_get(), kt);
+    // kt = ktime_sub(ktime_get(), kt);
 
     return result;
 }
@@ -227,8 +234,8 @@ static ssize_t fib_write(struct file *file,
                          size_t size,
                          loff_t *offset)
 {
-    // return 1;
-    return ktime_to_ns(kt);
+    return 1;
+    // return ktime_to_ns(kt);
 }
 
 static loff_t fib_device_lseek(struct file *file, loff_t offset, int orig)

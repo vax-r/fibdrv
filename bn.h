@@ -1,18 +1,25 @@
-#include <stdint.h>
+#ifndef _BIGNUM_H_
+#define _BIGNUM_H_
 
-// this is the header file for big number operations
+#define BASE 10000000000000000
+#define BLOCK_LEN 16  // the number of digits per block
 
-#define maxLen 100
-#define BASE 1000000000U
-#define str_ulen 9
+#include <stddef.h>
 
-typedef struct _bn {
-    unsigned int
-        *number;  // the number in array form, each digits occupies an element
-    unsigned int
-        size;  // the size of allocated memory, unit is sizeof(unsigned int)
-    int sign;  // 0 represents positive, 1 represents negative
+typedef unsigned long long n_type;
+
+typedef struct {
+    n_type *number;
+    unsigned int size;
+    int sign;
 } bn;
 
-bn *bn_init(int64_t num);
-char *bn_to_string(bn *src);
+bn *bn_init(size_t size);
+void bn_free(bn *num);
+void bn_add(bn *a, bn *b, bn *c);
+void bn_resize(bn *num, int new_size);
+char *bn_to_string(bn *num);
+
+
+
+#endif
